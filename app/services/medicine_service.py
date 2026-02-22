@@ -101,9 +101,9 @@ async def delete_medicine(medicine_id: int) -> bool:
         if not await cursor.fetchone():
             return False
 
-        # Delete future doses (keep taken/missed for history)
+        # Delete all doses (scheduled, taken, missed)
         await db.execute(
-            "DELETE FROM doses WHERE medicine_id = ? AND status = 'scheduled'",
+            "DELETE FROM doses WHERE medicine_id = ?",
             (medicine_id,),
         )
         # Delete schedules
