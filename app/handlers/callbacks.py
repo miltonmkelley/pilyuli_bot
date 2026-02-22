@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.config import settings
-from app.keyboards import main_menu_kb, schedule_menu_kb
+from app.keyboards import main_menu_kb, schedule_menu_kb, history_kb
 from app.services.dose_service import mark_taken, snooze
 
 
@@ -37,7 +37,7 @@ async def on_reply_today(message: Message) -> None:
         return
 
     text = await _format_today(message.from_user.id)
-    await message.answer(text)
+    await message.answer(text, reply_markup=history_kb())
 
 
 @router.message(F.text == "⚙️ Настройки")
@@ -121,6 +121,23 @@ async def on_delete_medicine(callback: CallbackQuery) -> None:
         await callback.answer("⚠️ Лекарство не найдено.", show_alert=True)
 
 
+# ── History callbacks ─────────────────────────────────────────────
+
+
+@router.callback_query(F.data.startswith("history:"))
+async def on_history(callback: CallbackQuery) -> None:
+    """Handle history buttons (yesterday, week)."""
+    from app.handlers.today import format_history
+
+    if not callback.from_user or not callback.data:
+        return
+
+    period = callback.data.split(":")[1]  # yesterday or week
+    await callback.answer()
+    text = await format_history(callback.from_user.id, period)
+    await callback.message.answer(text)  # type: ignore[union-attr]
+
+
 # ── Inline menu navigation callbacks ──────────────────────────────
 
 
@@ -143,7 +160,7 @@ async def on_menu_today(callback: CallbackQuery) -> None:
 
     await callback.answer()
     text = await _format_today(callback.from_user.id)
-    await callback.message.answer(text)  # type: ignore[union-attr]
+    await callback.message.answer(text, reply_markup=history_kb())  # type: ignore[union-attr]
 
 
 @router.callback_query(F.data == "menu:settings")

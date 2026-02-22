@@ -69,6 +69,18 @@ def delete_medicine_kb(medicines: list[dict]) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
+def history_kb() -> InlineKeyboardMarkup:
+    """Inline keyboard for history navigation."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="📅 Вчера", callback_data="history:yesterday"),
+                InlineKeyboardButton(text="📅 Неделя", callback_data="history:week"),
+            ],
+        ]
+    )
+
+
 def dose_reminder_kb(dose_id: int) -> InlineKeyboardMarkup:
     """Create an inline keyboard for a dose reminder.
 

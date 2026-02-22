@@ -237,3 +237,42 @@ async def get_today_doses(telegram_id: int, date_str: str) -> list[dict[str, Any
         ]
     finally:
         await db.close()
+
+
+async def get_dose_history(
+    telegram_id: int, start_date: str, end_date: str
+) -> list[dict[str, Any]]:
+    """Get dose history for a user between start_date and end_date (inclusive).
+
+    Returns doses sorted by scheduled_datetime descending.
+    """
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            """
+            SELECT d.id, m.name, m.dosage, d.scheduled_datetime,
+                   d.status, d.taken_at
+            FROM doses d
+            JOIN medicines m ON d.medicine_id = m.id
+            JOIN users u ON m.user_id = u.id
+            WHERE u.telegram_id = ?
+              AND d.scheduled_datetime >= ?
+              AND d.scheduled_datetime < ?
+            ORDER BY d.scheduled_datetime DESC
+            """,
+            (telegram_id, f"{start_date} 00:00", f"{end_date} 23:59"),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "dose_id": r[0],
+                "medicine_name": r[1],
+                "dosage": r[2],
+                "scheduled_datetime": r[3],
+                "status": r[4],
+                "taken_at": r[5],
+            }
+            for r in rows
+        ]
+    finally:
+        await db.close()
