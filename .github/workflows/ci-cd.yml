@@ -36,8 +36,9 @@ jobs:
         with:
           host: ${{ secrets.SSH_HOST }}
           username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          password: ${{ secrets.SSH_PASSWORD }}
           script: |
             cd /home/pilyuli_bot
             git pull origin main
             docker-compose up -d --build
+
