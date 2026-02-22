@@ -85,3 +85,36 @@ async def get_user_medicines(telegram_id: int) -> list[dict]:
         return medicines
     finally:
         await db.close()
+
+
+async def delete_medicine(medicine_id: int) -> bool:
+    """Delete a medicine, its schedules, and future (scheduled) doses.
+
+    Returns True if the medicine was found and deleted.
+    """
+    db = await get_db()
+    try:
+        # Check medicine exists
+        cursor = await db.execute(
+            "SELECT id FROM medicines WHERE id = ?", (medicine_id,)
+        )
+        if not await cursor.fetchone():
+            return False
+
+        # Delete future doses (keep taken/missed for history)
+        await db.execute(
+            "DELETE FROM doses WHERE medicine_id = ? AND status = 'scheduled'",
+            (medicine_id,),
+        )
+        # Delete schedules
+        await db.execute(
+            "DELETE FROM schedules WHERE medicine_id = ?", (medicine_id,)
+        )
+        # Delete medicine
+        await db.execute(
+            "DELETE FROM medicines WHERE id = ?", (medicine_id,)
+        )
+        await db.commit()
+        return True
+    finally:
+        await db.close()

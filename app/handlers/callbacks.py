@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from app.config import settings
-from app.keyboards import main_menu_kb
+from app.keyboards import main_menu_kb, schedule_menu_kb
 from app.services.dose_service import mark_taken, snooze
 
 
@@ -20,13 +20,12 @@ router = Router()
 # ── Reply keyboard text button handlers ────────────────────────────
 
 
-@router.message(F.text == "💊 Добавить")
-async def on_reply_add(message: Message, state: FSMContext) -> None:
-    """Handle reply keyboard '💊 Добавить' button."""
-    from app.handlers.add_medicine import AddMedicine
-
-    await state.set_state(AddMedicine.name)
-    await message.answer("💊 Введите название лекарства:")
+@router.message(F.text == "📋 Расписание")
+async def on_reply_schedule(message: Message) -> None:
+    """Handle reply keyboard '📋 Расписание' button — show add/delete sub-menu."""
+    await message.answer(
+        "📋 Управление расписанием:", reply_markup=schedule_menu_kb()
+    )
 
 
 @router.message(F.text == "📋 Сегодня")
@@ -61,17 +60,77 @@ async def on_reply_settings(message: Message, state: FSMContext) -> None:
     await state.set_state(EditSettings.max_reminders)
 
 
-# ── Inline menu navigation callbacks ──────────────────────────────
+# ── Schedule sub-menu callbacks ───────────────────────────────────
 
 
-@router.callback_query(F.data == "menu:add")
-async def on_menu_add(callback: CallbackQuery, state: FSMContext) -> None:
-    """Handle inline '💊 Добавить' button."""
+@router.callback_query(F.data == "sched:add")
+async def on_sched_add(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle schedule sub-menu '💊 Добавить' button."""
     from app.handlers.add_medicine import AddMedicine
 
     await callback.answer()
     await state.set_state(AddMedicine.name)
     await callback.message.answer("💊 Введите название лекарства:")  # type: ignore[union-attr]
+
+
+@router.callback_query(F.data == "sched:delete")
+async def on_sched_delete(callback: CallbackQuery) -> None:
+    """Handle schedule sub-menu '🗑 Удалить' — show medicine list."""
+    from app.keyboards import delete_medicine_kb
+    from app.services.medicine_service import get_user_medicines
+
+    if not callback.from_user:
+        return
+
+    await callback.answer()
+    medicines = await get_user_medicines(callback.from_user.id)
+
+    if not medicines:
+        await callback.message.edit_text("📭 У вас нет добавленных лекарств.")  # type: ignore[union-attr]
+        return
+
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        "🗑 Выберите лекарство для удаления:",
+        reply_markup=delete_medicine_kb(medicines),
+    )
+
+
+@router.callback_query(F.data == "sched:back")
+async def on_sched_back(callback: CallbackQuery) -> None:
+    """Handle '↩️ Назад' — return to schedule sub-menu."""
+    await callback.answer()
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        "📋 Управление расписанием:", reply_markup=schedule_menu_kb()
+    )
+
+
+@router.callback_query(F.data.startswith("delete_med:"))
+async def on_delete_medicine(callback: CallbackQuery) -> None:
+    """Handle medicine deletion."""
+    from app.services.medicine_service import delete_medicine
+
+    if not callback.data:
+        return
+
+    medicine_id = int(callback.data.split(":")[1])
+    success = await delete_medicine(medicine_id)
+
+    if success:
+        await callback.message.edit_text("✅ Лекарство удалено из расписания.")  # type: ignore[union-attr]
+    else:
+        await callback.answer("⚠️ Лекарство не найдено.", show_alert=True)
+
+
+# ── Inline menu navigation callbacks ──────────────────────────────
+
+
+@router.callback_query(F.data == "menu:schedule")
+async def on_menu_schedule(callback: CallbackQuery) -> None:
+    """Handle inline '📋 Расписание' button."""
+    await callback.answer()
+    await callback.message.answer(  # type: ignore[union-attr]
+        "📋 Управление расписанием:", reply_markup=schedule_menu_kb()
+    )
 
 
 @router.callback_query(F.data == "menu:today")

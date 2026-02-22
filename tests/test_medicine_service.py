@@ -67,3 +67,55 @@ async def test_multiple_medicines():
     assert len(medicines) == 2
     names = {m["name"] for m in medicines}
     assert names == {"Med A", "Med B"}
+
+
+@pytest.mark.asyncio
+async def test_delete_medicine():
+    await _reset_db()
+    from app.services.dose_service import generate_daily_doses
+    from app.services.medicine_service import (
+        add_medicine,
+        delete_medicine,
+        get_user_medicines,
+    )
+
+    med_id = await add_medicine(99999, "ToDelete", "1 tab", ["10:00"])
+    await generate_daily_doses("2025-06-15")
+
+    # Verify medicine and doses exist
+    medicines = await get_user_medicines(99999)
+    assert len(medicines) == 1
+
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT COUNT(*) FROM doses WHERE medicine_id = ?", (med_id,)
+        )
+        assert (await cur.fetchone())[0] == 1
+    finally:
+        await db.close()
+
+    # Delete medicine
+    result = await delete_medicine(med_id)
+    assert result is True
+
+    # Verify everything is gone
+    medicines = await get_user_medicines(99999)
+    assert len(medicines) == 0
+
+    db = await get_db()
+    try:
+        cur = await db.execute(
+            "SELECT COUNT(*) FROM doses WHERE medicine_id = ?", (med_id,)
+        )
+        assert (await cur.fetchone())[0] == 0
+        cur = await db.execute(
+            "SELECT COUNT(*) FROM schedules WHERE medicine_id = ?", (med_id,)
+        )
+        assert (await cur.fetchone())[0] == 0
+    finally:
+        await db.close()
+
+    # Delete non-existent returns False
+    result = await delete_medicine(99999)
+    assert result is False
