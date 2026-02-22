@@ -34,13 +34,15 @@ CREATE TABLE IF NOT EXISTS schedules (
 CREATE TABLE IF NOT EXISTS doses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     medicine_id INTEGER NOT NULL,
+    schedule_id INTEGER,
     scheduled_datetime TEXT NOT NULL,
     status TEXT NOT NULL,
     taken_at TEXT,
     reminder_sent INTEGER DEFAULT 0,
     reminder_count INTEGER DEFAULT 0,
     next_reminder_at TEXT,
-    FOREIGN KEY (medicine_id) REFERENCES medicines(id)
+    FOREIGN KEY (medicine_id) REFERENCES medicines(id),
+    FOREIGN KEY (schedule_id) REFERENCES schedules(id)
 );
 
 CREATE TABLE IF NOT EXISTS user_settings (

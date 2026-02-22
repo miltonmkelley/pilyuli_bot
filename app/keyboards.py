@@ -1,8 +1,28 @@
-"""Inline keyboards for bot interactions."""
+"""Inline and reply keyboards for bot interactions."""
 
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
+
+
+def persistent_menu_kb() -> ReplyKeyboardMarkup:
+    """Persistent reply keyboard always visible at the bottom of the chat."""
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="💊 Добавить"),
+                KeyboardButton(text="📋 Сегодня"),
+                KeyboardButton(text="⚙️ Настройки"),
+            ],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
 
 
 def main_menu_kb() -> InlineKeyboardMarkup:
@@ -39,4 +59,3 @@ def dose_reminder_kb(dose_id: int) -> InlineKeyboardMarkup:
             ]
         ]
     )
-

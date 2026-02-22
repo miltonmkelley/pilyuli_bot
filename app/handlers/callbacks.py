@@ -1,4 +1,4 @@
-"""Callback query handlers for dose inline buttons and menu navigation."""
+"""Callback query handlers for dose buttons and menu (inline + reply keyboard)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from app.config import settings
 from app.keyboards import main_menu_kb
@@ -17,12 +17,56 @@ from app.services.dose_service import mark_taken, snooze
 router = Router()
 
 
-# ── Menu navigation callbacks ──────────────────────────────────────
+# ── Reply keyboard text button handlers ────────────────────────────
+
+
+@router.message(F.text == "💊 Добавить")
+async def on_reply_add(message: Message, state: FSMContext) -> None:
+    """Handle reply keyboard '💊 Добавить' button."""
+    from app.handlers.add_medicine import AddMedicine
+
+    await state.set_state(AddMedicine.name)
+    await message.answer("💊 Введите название лекарства:")
+
+
+@router.message(F.text == "📋 Сегодня")
+async def on_reply_today(message: Message) -> None:
+    """Handle reply keyboard '📋 Сегодня' button."""
+    from app.handlers.today import _format_today
+
+    if not message.from_user:
+        return
+
+    text = await _format_today(message.from_user.id)
+    await message.answer(text)
+
+
+@router.message(F.text == "⚙️ Настройки")
+async def on_reply_settings(message: Message, state: FSMContext) -> None:
+    """Handle reply keyboard '⚙️ Настройки' button."""
+    from app.handlers.settings import EditSettings
+    from app.services.settings_service import get_settings_by_telegram_id
+
+    if not message.from_user:
+        return
+
+    current = await get_settings_by_telegram_id(message.from_user.id)
+    await message.answer(
+        f"⚙️ Текущие настройки уведомлений:\n\n"
+        f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
+        f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
+        f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
+        f"Для отмены отправьте /cancel"
+    )
+    await state.set_state(EditSettings.max_reminders)
+
+
+# ── Inline menu navigation callbacks ──────────────────────────────
 
 
 @router.callback_query(F.data == "menu:add")
 async def on_menu_add(callback: CallbackQuery, state: FSMContext) -> None:
-    """Handle '💊 Добавить' button — start add-medicine FSM."""
+    """Handle inline '💊 Добавить' button."""
     from app.handlers.add_medicine import AddMedicine
 
     await callback.answer()
@@ -32,7 +76,7 @@ async def on_menu_add(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "menu:today")
 async def on_menu_today(callback: CallbackQuery) -> None:
-    """Handle '📋 Сегодня' button — show today's schedule."""
+    """Handle inline '📋 Сегодня' button."""
     from app.handlers.today import _format_today
 
     if not callback.from_user:
@@ -40,12 +84,12 @@ async def on_menu_today(callback: CallbackQuery) -> None:
 
     await callback.answer()
     text = await _format_today(callback.from_user.id)
-    await callback.message.answer(text, reply_markup=main_menu_kb())  # type: ignore[union-attr]
+    await callback.message.answer(text)  # type: ignore[union-attr]
 
 
 @router.callback_query(F.data == "menu:settings")
 async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
-    """Handle '⚙️ Настройки' button — show settings."""
+    """Handle inline '⚙️ Настройки' button."""
     from app.handlers.settings import EditSettings
     from app.services.settings_service import get_settings_by_telegram_id
 

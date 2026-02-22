@@ -12,6 +12,7 @@ async def _reset_db() -> None:
     """Drop all tables and recreate the schema."""
     db = await get_db()
     try:
+        await db.execute("DROP TABLE IF EXISTS user_settings")
         await db.execute("DROP TABLE IF EXISTS doses")
         await db.execute("DROP TABLE IF EXISTS schedules")
         await db.execute("DROP TABLE IF EXISTS medicines")

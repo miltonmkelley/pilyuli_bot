@@ -28,23 +28,23 @@ async def generate_daily_doses(date_str: str) -> int:
             time_str = sch[2]
             scheduled_dt = f"{date_str} {time_str}"
 
-            # Check for duplicate
+            # Check for duplicate per schedule entry per day
             dup = await db.execute(
                 """
                 SELECT id FROM doses
-                WHERE medicine_id = ? AND scheduled_datetime = ?
+                WHERE schedule_id = ? AND scheduled_datetime LIKE ?
                 """,
-                (medicine_id, scheduled_dt),
+                (schedule_id, f"{date_str}%"),
             )
             if await dup.fetchone():
                 continue
 
             await db.execute(
                 """
-                INSERT INTO doses (medicine_id, scheduled_datetime, status, reminder_sent, reminder_count, next_reminder_at)
-                VALUES (?, ?, 'scheduled', 0, 0, ?)
+                INSERT INTO doses (medicine_id, schedule_id, scheduled_datetime, status, reminder_sent, reminder_count, next_reminder_at)
+                VALUES (?, ?, ?, 'scheduled', 0, 0, ?)
                 """,
-                (medicine_id, scheduled_dt, scheduled_dt),
+                (medicine_id, schedule_id, scheduled_dt, scheduled_dt),
             )
             created += 1
 

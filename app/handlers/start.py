@@ -6,7 +6,7 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
-from app.keyboards import main_menu_kb
+from app.keyboards import main_menu_kb, persistent_menu_kb
 from app.services.medicine_service import ensure_user
 
 router = Router()
@@ -20,11 +20,9 @@ async def cmd_start(message: Message) -> None:
 
     await ensure_user(message.from_user.id)
 
+    # Send persistent reply keyboard (always visible at bottom)
     await message.answer(
         "👋 Привет! Я бот-напоминалка о лекарствах.\n\n"
-        "Доступные команды:\n"
-        "/add — добавить лекарство\n"
-        "/today — расписание на сегодня\n"
-        "/settings — настройки уведомлений",
-        reply_markup=main_menu_kb(),
+        "Используй кнопки внизу для быстрого доступа 👇",
+        reply_markup=persistent_menu_kb(),
     )
