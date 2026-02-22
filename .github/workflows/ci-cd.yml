@@ -40,4 +40,4 @@ jobs:
           script: |
             cd /home/pilyuli_bot
             git pull origin main
-            docker compose up -d --build
+            docker-compose up -d --build

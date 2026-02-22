@@ -9,3 +9,8 @@ services:
       - bot-data:/app/data
     environment:
       - DB_PATH=/app/data/pill_bot.db
+
+volumes:
+  bot-data:
+
+
