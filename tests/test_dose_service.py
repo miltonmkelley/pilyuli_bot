@@ -82,7 +82,7 @@ async def test_snooze():
 
     await generate_daily_doses("2025-06-15")
 
-    success = await snooze(1)
+    success, interval = await snooze(1)
     assert success is True
 
     db = await get_db()

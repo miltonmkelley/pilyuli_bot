@@ -134,15 +134,20 @@ async def on_dose_taken(callback: CallbackQuery) -> None:
 @router.callback_query(F.data.startswith("dose_snooze:"))
 async def on_dose_snooze(callback: CallbackQuery) -> None:
     """Handle the 'Snooze' button press."""
-    if not callback.data:
+    if not callback.data or not callback.from_user:
         return
 
+    from app.services.settings_service import get_settings_by_telegram_id
+
     dose_id = int(callback.data.split(":")[1])
-    success = await snooze(dose_id)
+    user_settings = await get_settings_by_telegram_id(callback.from_user.id)
+    interval = user_settings["reminder_interval_minutes"]
+
+    success, used_interval = await snooze(dose_id, interval)
 
     if success:
         await callback.message.edit_text(  # type: ignore[union-attr]
-            "⏰ Напоминание отложено на 10 минут"
+            f"⏰ Напоминание отложено на {used_interval} мин."
         )
     else:
         await callback.answer("⚠️ Этот приём уже обработан.", show_alert=True)

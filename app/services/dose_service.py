@@ -150,8 +150,8 @@ async def mark_taken(dose_id: int, taken_at: str) -> bool:
         await db.close()
 
 
-async def snooze(dose_id: int) -> bool:
-    """Snooze a dose by 10 minutes. Returns False if state transition is forbidden."""
+async def snooze(dose_id: int, interval_minutes: int = 10) -> tuple[bool, int]:
+    """Snooze a dose. Returns (success, interval_used)."""
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -160,10 +160,10 @@ async def snooze(dose_id: int) -> bool:
         )
         row = await cursor.fetchone()
         if not row or row[0] != "scheduled":
-            return False
+            return False, 0
 
         old_dt = datetime.strptime(row[1], "%Y-%m-%d %H:%M")
-        new_dt = old_dt + timedelta(minutes=10)
+        new_dt = old_dt + timedelta(minutes=interval_minutes)
         new_dt_str = new_dt.strftime("%Y-%m-%d %H:%M")
 
         await db.execute(
@@ -176,7 +176,7 @@ async def snooze(dose_id: int) -> bool:
             (new_dt_str, new_dt_str, dose_id),
         )
         await db.commit()
-        return True
+        return True, interval_minutes
     finally:
         await db.close()
 
