@@ -37,6 +37,10 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
     try:
         tz = pytz.timezone(tz_name)
         now_str = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
+
+        # Mark missed doses FIRST so they don't trigger reminders
+        await process_missed_doses(now_str)
+
         due = await get_due_reminders(now_str)
 
         for dose in due:
