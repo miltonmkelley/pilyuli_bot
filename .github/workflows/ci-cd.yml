@@ -39,8 +39,16 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+
+          echo "=== DEBUG: Key file info ==="
+          wc -l ~/.ssh/deploy_key
+          head -1 ~/.ssh/deploy_key
+          tail -1 ~/.ssh/deploy_key
+          ssh-keygen -l -f ~/.ssh/deploy_key 2>&1 || echo "Key parse failed"
+          echo "=== END DEBUG ==="
+
           ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@"$SSH_HOST" '
+          ssh -vvv -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@"$SSH_HOST" '
             cd /home/pilyuli_bot &&
             git pull origin main &&
             docker-compose up -d --build
