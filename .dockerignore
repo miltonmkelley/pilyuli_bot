@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+pill_bot.db
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.git/
+.github/
+tests/
+README.md
+telegram_pill_bot_TZ.md

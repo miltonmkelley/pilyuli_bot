@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import os
+
 import aiosqlite
 
-DB_PATH = "pill_bot.db"
+DB_PATH = os.getenv("DB_PATH", "pill_bot.db")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
