@@ -12,6 +12,7 @@ from aiogram.types import Message
 from app.config import settings
 from app.keyboards import history_kb
 from app.services.dose_service import get_dose_history, get_today_doses
+from app.services.message_service import send_single_message
 
 router = Router()
 
@@ -107,6 +108,17 @@ async def cmd_today(message: Message) -> None:
     """Show today's doses for the user."""
     if not message.from_user:
         return
+        
+    try:
+        await message.delete()
+    except Exception:
+        pass
 
     text = await _format_today(message.from_user.id)
-    await message.answer(text, reply_markup=history_kb())
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text=text,
+            reply_markup=history_kb()
+        )

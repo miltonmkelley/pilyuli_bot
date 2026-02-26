@@ -16,6 +16,7 @@ from app.config import settings
 from app.keyboards import main_menu_kb
 from app.services.dose_service import generate_daily_doses
 from app.services.medicine_service import add_medicine
+from app.services.message_service import send_single_message
 
 router = Router()
 
@@ -33,41 +34,84 @@ class AddMedicine(StatesGroup):
 @router.message(Command("add"))
 async def cmd_add(message: Message, state: FSMContext) -> None:
     """Start the add-medicine flow."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    
     await state.set_state(AddMedicine.name)
-    await message.answer("💊 Введите название лекарства:")
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text="💊 Введите название лекарства:"
+        )
 
 
 @router.message(AddMedicine.name)
 async def process_name(message: Message, state: FSMContext) -> None:
     """Receive medicine name, ask for dosage."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     if not message.text or not message.text.strip():
-        await message.answer("Название не может быть пустым. Попробуйте ещё раз:")
+        if message.bot:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text="Название не может быть пустым. Попробуйте ещё раз:"
+            )
         return
 
     await state.update_data(name=message.text.strip())
     await state.set_state(AddMedicine.dosage)
-    await message.answer(
-        "💉 Введите дозировку (например, «1 таблетка» или «5 мл»):"
-    )
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text="💉 Введите дозировку (например, «1 таблетка» или «5 мл»):"
+        )
 
 
 @router.message(AddMedicine.dosage)
 async def process_dosage(message: Message, state: FSMContext) -> None:
     """Receive dosage, ask for schedule times."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     dosage = (message.text or "").strip()
     await state.update_data(dosage=dosage)
     await state.set_state(AddMedicine.times)
-    await message.answer(
-        "🕐 Введите время приёма в формате ЧЧ:ММ.\n"
-        "Несколько значений через запятую (например: 08:00, 14:00, 22:00):"
-    )
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text=(
+                "🕐 Введите время приёма в формате ЧЧ:ММ.\n"
+                "Несколько значений через запятую (например: 08:00, 14:00, 22:00):"
+            )
+        )
 
 
 @router.message(AddMedicine.times)
 async def process_times(message: Message, state: FSMContext) -> None:
     """Receive schedule times, validate, and save medicine."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     if not message.text:
-        await message.answer("Пожалуйста, введите время:")
+        if message.bot:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text="Пожалуйста, введите время:"
+            )
         return
 
     raw_times = [t.strip() for t in message.text.split(",")]
@@ -81,14 +125,24 @@ async def process_times(message: Message, state: FSMContext) -> None:
             invalid.append(t)
 
     if invalid:
-        await message.answer(
-            f"❌ Неверный формат времени: {', '.join(invalid)}\n"
-            "Используйте формат ЧЧ:ММ (например, 08:00, 14:30):"
-        )
+        if message.bot:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text=(
+                    f"❌ Неверный формат времени: {', '.join(invalid)}\n"
+                    "Используйте формат ЧЧ:ММ (например, 08:00, 14:30):"
+                )
+            )
         return
 
     if not valid_times:
-        await message.answer("Нужно указать хотя бы одно время:")
+        if message.bot:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text="Нужно указать хотя бы одно время:"
+            )
         return
 
     data = await state.get_data()
@@ -109,10 +163,15 @@ async def process_times(message: Message, state: FSMContext) -> None:
 
     times_str = ", ".join(valid_times)
     await state.clear()
-    await message.answer(
-        f"✅ Лекарство «{data['name']}» добавлено!\n"
-        f"Дозировка: {data['dosage']}\n"
-        f"Время приёма: {times_str}",
-        reply_markup=main_menu_kb(),
-    )
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text=(
+                f"✅ Лекарство «{data['name']}» добавлено!\n"
+                f"Дозировка: {data['dosage']}\n"
+                f"Время приёма: {times_str}"
+            ),
+            reply_markup=main_menu_kb(),
+        )
 

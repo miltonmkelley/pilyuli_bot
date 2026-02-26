@@ -17,6 +17,7 @@ from app.services.dose_service import (
     mark_reminder_sent,
     process_missed_doses,
 )
+from app.services.message_service import send_single_message
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,8 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
             text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}{count_label}"
 
             try:
-                await bot.send_message(
+                await send_single_message(
+                    bot=bot,
                     chat_id=dose["telegram_id"],
                     text=text,
                     reply_markup=dose_reminder_kb(dose["dose_id"]),

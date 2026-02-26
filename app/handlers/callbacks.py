@@ -12,7 +12,7 @@ from aiogram.types import CallbackQuery, Message
 from app.config import settings
 from app.keyboards import main_menu_kb, schedule_menu_kb, history_kb
 from app.services.dose_service import mark_taken, snooze
-
+from app.services.message_service import send_single_message
 
 router = Router()
 
@@ -23,9 +23,17 @@ router = Router()
 @router.message(F.text == "📋 Расписание")
 async def on_reply_schedule(message: Message) -> None:
     """Handle reply keyboard '📋 Расписание' button — show add/delete sub-menu."""
-    await message.answer(
-        "📋 Управление расписанием:", reply_markup=schedule_menu_kb()
-    )
+    try:
+        await message.delete()
+    except Exception:
+        pass
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text="📋 Управление расписанием:", 
+            reply_markup=schedule_menu_kb()
+        )
 
 
 @router.message(F.text == "📋 Сегодня")
@@ -36,8 +44,19 @@ async def on_reply_today(message: Message) -> None:
     if not message.from_user:
         return
 
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     text = await _format_today(message.from_user.id)
-    await message.answer(text, reply_markup=history_kb())
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text=text, 
+            reply_markup=history_kb()
+        )
 
 
 @router.message(F.text == "⚙️ Настройки")
@@ -49,14 +68,24 @@ async def on_reply_settings(message: Message, state: FSMContext) -> None:
     if not message.from_user:
         return
 
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
     current = await get_settings_by_telegram_id(message.from_user.id)
-    await message.answer(
-        f"⚙️ Текущие настройки уведомлений:\n\n"
-        f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
-        f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
-        f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-        f"Для отмены отправьте /cancel"
-    )
+    if message.bot:
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text=(
+                f"⚙️ Текущие настройки уведомлений:\n\n"
+                f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
+                f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
+                f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
+                f"Для отмены отправьте /cancel"
+            )
+        )
     await state.set_state(EditSettings.max_reminders)
 
 
@@ -70,7 +99,12 @@ async def on_sched_add(callback: CallbackQuery, state: FSMContext) -> None:
 
     await callback.answer()
     await state.set_state(AddMedicine.name)
-    await callback.message.answer("💊 Введите название лекарства:")  # type: ignore[union-attr]
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text="💊 Введите название лекарства:"
+        )
 
 
 @router.callback_query(F.data == "sched:delete")
@@ -135,7 +169,12 @@ async def on_history(callback: CallbackQuery) -> None:
     period = callback.data.split(":")[1]  # yesterday or week
     await callback.answer()
     text = await format_history(callback.from_user.id, period)
-    await callback.message.answer(text)  # type: ignore[union-attr]
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text=text
+        )
 
 
 # ── Inline menu navigation callbacks ──────────────────────────────
@@ -145,9 +184,13 @@ async def on_history(callback: CallbackQuery) -> None:
 async def on_menu_schedule(callback: CallbackQuery) -> None:
     """Handle inline '📋 Расписание' button."""
     await callback.answer()
-    await callback.message.answer(  # type: ignore[union-attr]
-        "📋 Управление расписанием:", reply_markup=schedule_menu_kb()
-    )
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text="📋 Управление расписанием:", 
+            reply_markup=schedule_menu_kb()
+        )
 
 
 @router.callback_query(F.data == "menu:today")
@@ -160,7 +203,13 @@ async def on_menu_today(callback: CallbackQuery) -> None:
 
     await callback.answer()
     text = await _format_today(callback.from_user.id)
-    await callback.message.answer(text, reply_markup=history_kb())  # type: ignore[union-attr]
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text=text, 
+            reply_markup=history_kb()
+        )
 
 
 @router.callback_query(F.data == "menu:settings")
@@ -174,13 +223,18 @@ async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
 
     await callback.answer()
     current = await get_settings_by_telegram_id(callback.from_user.id)
-    await callback.message.answer(  # type: ignore[union-attr]
-        f"⚙️ Текущие настройки уведомлений:\n\n"
-        f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
-        f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
-        f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-        f"Для отмены отправьте /cancel"
-    )
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text=(
+                f"⚙️ Текущие настройки уведомлений:\n\n"
+                f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
+                f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
+                f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
+                f"Для отмены отправьте /cancel"
+            )
+        )
     await state.set_state(EditSettings.max_reminders)
 
 

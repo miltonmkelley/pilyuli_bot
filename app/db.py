@@ -12,7 +12,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     telegram_id INTEGER UNIQUE NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    last_message_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS medicines (
@@ -59,6 +60,14 @@ async def init_db(db_path: str = DB_PATH) -> None:
     """Create tables if they don't exist."""
     async with aiosqlite.connect(db_path) as db:
         await db.executescript(SCHEMA)
+        
+        # Миграция: добавляем last_message_id, если его нет
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN last_message_id INTEGER")
+        except aiosqlite.OperationalError:
+            # Колонка уже существует
+            pass
+            
         await db.commit()
 
 
@@ -71,3 +80,26 @@ async def get_db(db_path: str = DB_PATH) -> aiosqlite.Connection:
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA foreign_keys = ON")
     return db
+
+
+async def get_last_message_id(telegram_id: int, db_path: str = DB_PATH) -> int | None:
+    """Get the ID of the last message sent to the user by the bot."""
+    async with aiosqlite.connect(db_path) as db:
+        async with db.execute(
+            "SELECT last_message_id FROM users WHERE telegram_id = ?", (telegram_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row and row[0] is not None:
+                return int(row[0])
+            return None
+
+
+async def set_last_message_id(telegram_id: int, message_id: int, db_path: str = DB_PATH) -> None:
+    """Save the ID of the last message sent to the user by the bot."""
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(
+            "UPDATE users SET last_message_id = ? WHERE telegram_id = ?",
+            (message_id, telegram_id),
+        )
+        await db.commit()
+
