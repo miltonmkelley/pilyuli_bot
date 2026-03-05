@@ -55,32 +55,24 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
             text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}{count_label}"
 
             try:
+            try:
                 if dose.get("message_id"):
-                    # Edit existing message inplace
+                    # Delete the old reminder message to prevent clutter
                     try:
-                        await bot.edit_message_text(
-                            text=text,
+                        await bot.delete_message(
                             chat_id=dose["telegram_id"],
                             message_id=dose["message_id"],
-                            reply_markup=dose_reminder_kb(dose["dose_id"]),
                         )
                     except TelegramBadRequest as e:
-                        # Fallback if message was deleted/not found
-                        logger.warning("Could not edit message %s, sending new one: %s", dose["message_id"], e)
-                        new_msg = await bot.send_message(
-                            chat_id=dose["telegram_id"],
-                            text=text,
-                            reply_markup=dose_reminder_kb(dose["dose_id"]),
-                        )
-                        await save_dose_message_id(dose["dose_id"], new_msg.message_id)
-                else:
-                    # Send a new independent reminder message 
-                    new_msg = await bot.send_message(
-                        chat_id=dose["telegram_id"],
-                        text=text,
-                        reply_markup=dose_reminder_kb(dose["dose_id"]),
-                    )
-                    await save_dose_message_id(dose["dose_id"], new_msg.message_id)
+                        logger.warning("Could not delete old message %s: %s", dose["message_id"], e)
+                
+                # Send a new reminder message to ensure a sound notification is triggered
+                new_msg = await bot.send_message(
+                    chat_id=dose["telegram_id"],
+                    text=text,
+                    reply_markup=dose_reminder_kb(dose["dose_id"]),
+                )
+                await save_dose_message_id(dose["dose_id"], new_msg.message_id)
 
                 await mark_reminder_sent(dose["dose_id"], dose["interval_minutes"])
             except Exception:
