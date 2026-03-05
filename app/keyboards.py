@@ -136,7 +136,7 @@ def today_kb(doses: list[dict]) -> InlineKeyboardMarkup:
         buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"today_edit:{dose['dose_id']}")])
         
     buttons.append([
-        InlineKeyboardButton(text="📅 История", callback_data="menu:today"),
+        InlineKeyboardButton(text="📅 История", callback_data="menu:history"),
         InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
     ])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

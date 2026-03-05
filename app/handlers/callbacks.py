@@ -224,6 +224,18 @@ async def on_menu_today(callback: CallbackQuery) -> None:
         )
 
 
+@router.callback_query(F.data == "menu:history")
+async def on_menu_history(callback: CallbackQuery) -> None:
+    """Handle inline '📅 История' button."""
+    await callback.answer()
+    if callback.message and callback.message.bot:
+        from app.keyboards import history_kb
+        await callback.message.edit_text(  # type: ignore[union-attr]
+            "📅 Выберите период для просмотра истории:",
+            reply_markup=history_kb()
+        )
+
+
 @router.callback_query(F.data == "menu:main")
 async def on_menu_main(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle inline '🏠 Главное меню' button."""
