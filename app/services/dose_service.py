@@ -310,3 +310,55 @@ async def get_dose_history(
         ]
     finally:
         await db.close()
+
+
+async def get_dose_by_id(dose_id: int) -> dict[str, Any] | None:
+    """Gets details for a single dose."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            """
+            SELECT d.id, m.name, m.dosage, d.scheduled_datetime,
+                   d.status, d.taken_at
+            FROM doses d
+            JOIN medicines m ON d.medicine_id = m.id
+            WHERE d.id = ?
+            """,
+            (dose_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return None
+        
+        return {
+            "dose_id": row[0],
+            "medicine_name": row[1],
+            "dosage": row[2],
+            "scheduled_datetime": row[3],
+            "status": row[4],
+            "taken_at": row[5],
+        }
+    finally:
+        await db.close()
+
+
+async def unmark_dose(dose_id: int) -> bool:
+    """Reset a dose's status back to 'scheduled', clearing take times."""
+    db = await get_db()
+    try:
+        cursor = await db.execute("SELECT id FROM doses WHERE id = ?", (dose_id,))
+        if not await cursor.fetchone():
+            return False
+
+        await db.execute(
+            """
+            UPDATE doses 
+            SET status = 'scheduled', taken_at = NULL 
+            WHERE id = ?
+            """,
+            (dose_id,),
+        )
+        await db.commit()
+        return True
+    finally:
+        await db.close()
