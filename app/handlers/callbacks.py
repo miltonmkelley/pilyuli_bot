@@ -49,13 +49,15 @@ async def on_reply_today(message: Message) -> None:
     except Exception:
         pass
 
-    text = await _format_today(message.from_user.id)
+    text, doses = await _format_today(message.from_user.id)
     if message.bot:
+        from app.keyboards import today_kb, back_to_main_kb
+        reply_markup = today_kb(doses) if doses else back_to_main_kb()
         await send_single_message(
             bot=message.bot,
             chat_id=message.chat.id,
             text=text, 
-            reply_markup=history_kb()
+            reply_markup=reply_markup
         )
 
 
@@ -74,6 +76,7 @@ async def on_reply_settings(message: Message, state: FSMContext) -> None:
         pass
 
     current = await get_settings_by_telegram_id(message.from_user.id)
+    from app.keyboards import back_to_main_kb
     if message.bot:
         await send_single_message(
             bot=message.bot,
@@ -83,8 +86,9 @@ async def on_reply_settings(message: Message, state: FSMContext) -> None:
                 f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
                 f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
                 f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-                f"Для отмены отправьте /cancel"
-            )
+                f"Для отмены отправьте /cancel или вернитесь в главное меню."
+            ),
+            reply_markup=back_to_main_kb()
         )
     await state.set_state(EditSettings.max_reminders)
 
@@ -208,13 +212,15 @@ async def on_menu_today(callback: CallbackQuery) -> None:
         return
 
     await callback.answer()
-    text = await _format_today(callback.from_user.id)
+    text, doses = await _format_today(callback.from_user.id)
     if callback.message and callback.message.bot:
+        from app.keyboards import today_kb, back_to_main_kb
+        reply_markup = today_kb(doses) if doses else back_to_main_kb()
         await send_single_message(
             bot=callback.message.bot,
             chat_id=callback.message.chat.id,
             text=text, 
-            reply_markup=history_kb()
+            reply_markup=reply_markup
         )
 
 
@@ -243,6 +249,7 @@ async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
 
     await callback.answer()
     current = await get_settings_by_telegram_id(callback.from_user.id)
+    from app.keyboards import back_to_main_kb
     if callback.message and callback.message.bot:
         await send_single_message(
             bot=callback.message.bot,
@@ -252,8 +259,9 @@ async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
                 f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
                 f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
                 f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-                f"Для отмены отправьте /cancel"
-            )
+                f"Для отмены отправьте /cancel или вернитесь в главное меню."
+            ),
+            reply_markup=back_to_main_kb()
         )
     await state.set_state(EditSettings.max_reminders)
 
@@ -320,3 +328,85 @@ async def on_dose_skip(callback: CallbackQuery) -> None:
         )
     else:
         await callback.answer("⚠️ Этот приём уже обработан.", show_alert=True)
+
+
+# ── Today View Editing callbacks ───────────────────────────────────
+
+@router.callback_query(F.data.startswith("today_edit:"))
+async def on_today_edit(callback: CallbackQuery) -> None:
+    """Handle clicking on a specific dose in the Today view."""
+    if not callback.data:
+        return
+
+    from app.services.dose_service import get_dose_by_id
+    from app.keyboards import edit_today_dose_kb
+
+    dose_id = int(callback.data.split(":")[1])
+    dose = await get_dose_by_id(dose_id)
+    
+    if not dose:
+        await callback.answer("⚠️ Приём не найден.", show_alert=True)
+        return
+
+    await callback.answer()
+    
+    time_part = dose["scheduled_datetime"].split(" ")[1] if " " in dose["scheduled_datetime"] else dose["scheduled_datetime"]
+    text = f"💊 Управление приёмом:\n\nЛекарство: {dose['medicine_name']} ({dose['dosage'] or '—'})\nВремя: {time_part}\nСтатус: "
+    
+    if dose["status"] == "taken":
+        text += "✅ Принято"
+    elif dose["status"] == "missed":
+        text += "❌ Пропущено"
+    elif dose["status"] == "skipped":
+        text += "❌ Не сегодня"
+    else:
+        text += "⏳ В ожидании"
+
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        text,
+        reply_markup=edit_today_dose_kb(dose_id, dose["status"])
+    )
+
+
+@router.callback_query(F.data == "today_back")
+async def on_today_back(callback: CallbackQuery) -> None:
+    """Return to the full Today view from the single dose edit view."""
+    from app.handlers.today import _format_today
+    if not callback.from_user:
+        return
+
+    await callback.answer()
+    text, doses = await _format_today(callback.from_user.id)
+    
+    if callback.message:
+        from app.keyboards import today_kb, back_to_main_kb
+        reply_markup = today_kb(doses) if doses else back_to_main_kb()
+        await callback.message.edit_text(text, reply_markup=reply_markup)  # type: ignore[union-attr]
+
+
+@router.callback_query(F.data.startswith("today_action_"))
+async def on_today_action(callback: CallbackQuery) -> None:
+    """Handle taking action on a dose from the Today view editor."""
+    if not callback.data:
+        return
+
+    from app.services.dose_service import mark_taken, mark_skipped, unmark_dose
+
+    action_parts = callback.data.split(":")
+    action_type = action_parts[0]
+    dose_id = int(action_parts[1])
+
+    success = False
+    if action_type == "today_action_taken":
+        tz = pytz.timezone(settings.timezone)
+        now_str = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
+        success = await mark_taken(dose_id, now_str)
+    elif action_type == "today_action_skip":
+        success = await mark_skipped(dose_id)
+    elif action_type == "today_action_reset":
+        success = await unmark_dose(dose_id)
+
+    if success:
+        await on_today_back(callback)
+    else:
+        await callback.answer("⚠️ Не удалось обновить статус приёма.", show_alert=True)

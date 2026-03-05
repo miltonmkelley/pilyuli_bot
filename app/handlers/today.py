@@ -42,7 +42,7 @@ def _format_dose(dose: dict) -> str:
         return f"⏳ {name} — {time_part} (ожидается)"
 
 
-async def _format_today(telegram_id: int) -> str:
+async def _format_today(telegram_id: int) -> tuple[str, list[dict]]:
     """Build the today's schedule text for a user. Reusable by callbacks."""
     tz = pytz.timezone(settings.timezone)
     today = datetime.now(tz).strftime("%Y-%m-%d")
@@ -52,10 +52,10 @@ async def _format_today(telegram_id: int) -> str:
         return (
             "📅 На сегодня нет запланированных приёмов.\n"
             "Добавьте лекарство командой /add"
-        )
+        ), []
 
     lines = [_format_dose(d) for d in doses]
-    return "📅 Сегодня:\n\n" + "\n".join(lines)
+    return "📅 Сегодня:\n\n" + "\n".join(lines), doses
 
 
 async def format_history(telegram_id: int, period: str) -> str:
@@ -114,11 +114,14 @@ async def cmd_today(message: Message) -> None:
     except Exception:
         pass
 
-    text = await _format_today(message.from_user.id)
+    text, doses = await _format_today(message.from_user.id)
     if message.bot:
+        from app.keyboards import today_kb, back_to_main_kb
+        reply_markup = today_kb(doses) if doses else back_to_main_kb()
+        
         await send_single_message(
             bot=message.bot,
             chat_id=message.chat.id,
             text=text,
-            reply_markup=history_kb()
+            reply_markup=reply_markup
         )

@@ -123,3 +123,37 @@ def back_to_main_kb() -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+def today_kb(doses: list[dict]) -> InlineKeyboardMarkup:
+    """Inline keyboard listing today's doses for editing."""
+    buttons = []
+    
+    # Add an edit button for each dose
+    for dose in doses:
+        status_icon = "✅" if dose["status"] == "taken" else "❌" if dose["status"] == "missed" else "⏳"
+        time_part = dose["scheduled_datetime"].split(" ")[1] if " " in dose["scheduled_datetime"] else dose["scheduled_datetime"]
+        btn_text = f"{status_icon} {dose['medicine_name']} {time_part}"
+        buttons.append([InlineKeyboardButton(text=btn_text, callback_data=f"today_edit:{dose['dose_id']}")])
+        
+    buttons.append([
+        InlineKeyboardButton(text="📅 История", callback_data="menu:today"),
+        InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
+    ])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def edit_today_dose_kb(dose_id: int, status: str) -> InlineKeyboardMarkup:
+    """Inline keyboard for editing a specific dose from the Today view."""
+    buttons = []
+    
+    if status != "taken":
+        buttons.append([InlineKeyboardButton(text="✅ Отметить как принятое", callback_data=f"today_action_taken:{dose_id}")])
+    
+    if status != "skipped" and status != "missed":
+        buttons.append([InlineKeyboardButton(text="❌ Пропустить", callback_data=f"today_action_skip:{dose_id}")])
+        
+    if status != "scheduled":
+        buttons.append([InlineKeyboardButton(text="⏪ Вернуть в ожидание", callback_data=f"today_action_reset:{dose_id}")])
+        
+    buttons.append([InlineKeyboardButton(text="↩️ Назад к списку", callback_data="today_back")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)

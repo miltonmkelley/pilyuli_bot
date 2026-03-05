@@ -150,7 +150,7 @@ async def mark_taken(dose_id: int, taken_at: str) -> bool:
             "SELECT status FROM doses WHERE id = ?", (dose_id,)
         )
         row = await cursor.fetchone()
-        if not row or row[0] not in ("scheduled", "missed"):
+        if not row:
             return False
 
         await db.execute(
@@ -202,7 +202,7 @@ async def mark_skipped(dose_id: int) -> bool:
             "SELECT status FROM doses WHERE id = ?", (dose_id,)
         )
         row = await cursor.fetchone()
-        if not row or row[0] not in ("scheduled", "missed"):
+        if not row:
             return False
 
         await db.execute(

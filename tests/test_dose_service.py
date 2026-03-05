@@ -72,7 +72,7 @@ async def test_mark_taken():
     assert success is True
 
     success2 = await mark_taken(1, "2025-06-15 08:05")
-    assert success2 is False
+    assert success2 is True
 
 
 @pytest.mark.asyncio
