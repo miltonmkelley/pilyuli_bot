@@ -113,3 +113,13 @@ def dose_reminder_kb(dose_id: int) -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+def back_to_main_kb() -> InlineKeyboardMarkup:
+    """Inline keyboard with only the main menu button."""
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
+            ]
+        ]
+    )

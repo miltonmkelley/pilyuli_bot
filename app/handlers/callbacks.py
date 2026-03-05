@@ -150,7 +150,11 @@ async def on_delete_medicine(callback: CallbackQuery) -> None:
     success = await delete_medicine(medicine_id)
 
     if success:
-        await callback.message.edit_text("✅ Лекарство удалено из расписания.")  # type: ignore[union-attr]
+        from app.keyboards import schedule_menu_kb
+        await callback.message.edit_text(
+            "✅ Лекарство удалено из расписания.", 
+            reply_markup=schedule_menu_kb()
+        )
     else:
         await callback.answer("⚠️ Лекарство не найдено.", show_alert=True)
 
@@ -170,10 +174,12 @@ async def on_history(callback: CallbackQuery) -> None:
     await callback.answer()
     text = await format_history(callback.from_user.id, period)
     if callback.message and callback.message.bot:
+        from app.keyboards import back_to_main_kb
         await send_single_message(
             bot=callback.message.bot,
             chat_id=callback.message.chat.id,
-            text=text
+            text=text,
+            reply_markup=back_to_main_kb()
         )
 
 
