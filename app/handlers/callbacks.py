@@ -212,6 +212,20 @@ async def on_menu_today(callback: CallbackQuery) -> None:
         )
 
 
+@router.callback_query(F.data == "menu:main")
+async def on_menu_main(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle inline '🏠 Главное меню' button."""
+    await callback.answer()
+    await state.clear()
+    if callback.message and callback.message.bot:
+        await send_single_message(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            text="🏠 Главное меню:", 
+            reply_markup=main_menu_kb()
+        )
+
+
 @router.callback_query(F.data == "menu:settings")
 async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle inline '⚙️ Настройки' button."""

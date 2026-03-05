@@ -33,6 +33,9 @@ def schedule_menu_kb() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="💊 Добавить", callback_data="sched:add"),
                 InlineKeyboardButton(text="🗑 Удалить", callback_data="sched:delete"),
             ],
+            [
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
+            ],
         ]
     )
 
@@ -64,7 +67,10 @@ def delete_medicine_kb(medicines: list[dict]) -> InlineKeyboardMarkup:
         for med in medicines
     ]
     buttons.append(
-        [InlineKeyboardButton(text="↩️ Назад", callback_data="sched:back")]
+        [
+            InlineKeyboardButton(text="↩️ Назад", callback_data="sched:back"),
+            InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
+        ]
     )
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -76,6 +82,9 @@ def history_kb() -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(text="📅 Вчера", callback_data="history:yesterday"),
                 InlineKeyboardButton(text="📅 Неделя", callback_data="history:week"),
+            ],
+            [
+                InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
             ],
         ]
     )

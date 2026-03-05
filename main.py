@@ -25,6 +25,20 @@ async def main() -> None:
     bot = create_bot()
     dp = create_dispatcher()
 
+    from aiogram.types import BotCommand, MenuButtonCommands
+
+    async def on_startup() -> None:
+        await bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Запустить бота"),
+            BotCommand(command="menu", description="Главное меню"),
+            BotCommand(command="add", description="Добавить лекарство"),
+            BotCommand(command="today", description="Расписание на сегодня"),
+            BotCommand(command="settings", description="Настройки"),
+        ])
+
+    dp.startup.register(on_startup)
+
     scheduler = setup_scheduler(bot)
     scheduler.start()
     logger.info("Scheduler started")

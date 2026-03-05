@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from aiogram import Router
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.keyboards import main_menu_kb, persistent_menu_kb
@@ -35,3 +36,26 @@ async def cmd_start(message: Message) -> None:
              "Используй кнопки внизу для быстрого доступа 👇",
         reply_markup=persistent_menu_kb(),
     )
+
+
+@router.message(Command("menu"))
+async def cmd_menu(message: Message, state: FSMContext) -> None:
+    """Handle /menu command: clear states and show menu."""
+    if not message.from_user:
+        return
+
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    await state.clear()
+    
+    if message.bot:
+        from app.keyboards import main_menu_kb
+        await send_single_message(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            text="🏠 Главное меню:",
+            reply_markup=main_menu_kb(),
+        )

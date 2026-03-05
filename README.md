@@ -27,8 +27,35 @@ TIMEZONE=Europe/Moscow
 
 ## Запуск
 
+### Локально
 ```bash
 uv run main.py
+```
+
+### Через Docker Compose
+Убедитесь, что у вас установлен Docker и docker-compose.
+Запуск в фоновом режиме:
+```bash
+docker-compose up -d
+```
+
+Логи бота:
+```bash
+docker-compose logs -f bot
+```
+
+Перезапуск бота (например, после обновления кода):
+```bash
+docker-compose restart bot
+```
+или полная пересборка и перезапуск:
+```bash
+docker-compose up -d --build
+```
+
+Остановка бота:
+```bash
+docker-compose down
 ```
 
 ## Команды бота
