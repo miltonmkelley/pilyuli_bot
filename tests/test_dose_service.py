@@ -112,7 +112,7 @@ async def test_process_missed():
 
 
 @pytest.mark.asyncio
-async def test_forbidden_transition_missed_to_taken():
+async def test_allowed_transition_missed_to_taken():
     await _seed_data()
     from app.services.dose_service import (
         generate_daily_doses,
@@ -124,7 +124,7 @@ async def test_forbidden_transition_missed_to_taken():
     await process_missed_doses("2025-06-15 10:01")
 
     success = await mark_taken(1, "2025-06-15 10:05")
-    assert success is False
+    assert success is True
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ from datetime import datetime
 
 import pytz
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.config import settings
@@ -16,6 +17,7 @@ from app.services.dose_service import (
     get_due_reminders,
     mark_reminder_sent,
     process_missed_doses,
+    save_dose_message_id,
 )
 from app.services.message_service import send_single_message
 
@@ -53,12 +55,33 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
             text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}{count_label}"
 
             try:
-                await send_single_message(
-                    bot=bot,
-                    chat_id=dose["telegram_id"],
-                    text=text,
-                    reply_markup=dose_reminder_kb(dose["dose_id"]),
-                )
+                if dose.get("message_id"):
+                    # Edit existing message inplace
+                    try:
+                        await bot.edit_message_text(
+                            text=text,
+                            chat_id=dose["telegram_id"],
+                            message_id=dose["message_id"],
+                            reply_markup=dose_reminder_kb(dose["dose_id"]),
+                        )
+                    except TelegramBadRequest as e:
+                        # Fallback if message was deleted/not found
+                        logger.warning("Could not edit message %s, sending new one: %s", dose["message_id"], e)
+                        new_msg = await bot.send_message(
+                            chat_id=dose["telegram_id"],
+                            text=text,
+                            reply_markup=dose_reminder_kb(dose["dose_id"]),
+                        )
+                        await save_dose_message_id(dose["dose_id"], new_msg.message_id)
+                else:
+                    # Send a new independent reminder message 
+                    new_msg = await bot.send_message(
+                        chat_id=dose["telegram_id"],
+                        text=text,
+                        reply_markup=dose_reminder_kb(dose["dose_id"]),
+                    )
+                    await save_dose_message_id(dose["dose_id"], new_msg.message_id)
+
                 await mark_reminder_sent(dose["dose_id"], dose["interval_minutes"])
             except Exception:
                 logger.exception(

@@ -66,7 +66,7 @@ async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
             """
             SELECT d.id, d.medicine_id, d.scheduled_datetime,
                    m.name, m.dosage, u.telegram_id,
-                   d.reminder_count,
+                   d.reminder_count, d.message_id,
                    COALESCE(us.max_reminders, 3) as max_reminders,
                    COALESCE(us.reminder_interval_minutes, 5) as interval_min
             FROM doses d
@@ -89,11 +89,24 @@ async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
                 "dosage": r[4],
                 "telegram_id": r[5],
                 "reminder_count": r[6],
-                "max_reminders": r[7],
-                "interval_minutes": r[8],
+                "message_id": r[7],
+                "max_reminders": r[8],
+                "interval_minutes": r[9],
             }
             for r in rows
         ]
+    finally:
+        await db.close()
+
+async def save_dose_message_id(dose_id: int, message_id: int) -> None:
+    """Save the telegram message ID associated with a dose reminder."""
+    db = await get_db()
+    try:
+        await db.execute(
+            "UPDATE doses SET message_id = ? WHERE id = ?",
+            (message_id, dose_id),
+        )
+        await db.commit()
     finally:
         await db.close()
 
@@ -137,7 +150,7 @@ async def mark_taken(dose_id: int, taken_at: str) -> bool:
             "SELECT status FROM doses WHERE id = ?", (dose_id,)
         )
         row = await cursor.fetchone()
-        if not row or row[0] != "scheduled":
+        if not row or row[0] not in ("scheduled", "missed"):
             return False
 
         await db.execute(
@@ -159,7 +172,7 @@ async def snooze(dose_id: int, interval_minutes: int = 10) -> tuple[bool, int]:
             (dose_id,),
         )
         row = await cursor.fetchone()
-        if not row or row[0] != "scheduled":
+        if not row or row[0] not in ("scheduled", "missed"):
             return False, 0
 
         old_dt = datetime.strptime(row[1], "%Y-%m-%d %H:%M")
@@ -177,6 +190,27 @@ async def snooze(dose_id: int, interval_minutes: int = 10) -> tuple[bool, int]:
         )
         await db.commit()
         return True, interval_minutes
+    finally:
+        await db.close()
+
+
+async def mark_skipped(dose_id: int) -> bool:
+    """Mark a dose as skipped. Returns False if state transition is forbidden."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT status FROM doses WHERE id = ?", (dose_id,)
+        )
+        row = await cursor.fetchone()
+        if not row or row[0] not in ("scheduled", "missed"):
+            return False
+
+        await db.execute(
+            "UPDATE doses SET status = 'skipped' WHERE id = ?",
+            (dose_id,),
+        )
+        await db.commit()
+        return True
     finally:
         await db.close()
 

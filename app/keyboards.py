@@ -94,6 +94,10 @@ def dose_reminder_kb(dose_id: int) -> InlineKeyboardMarkup:
                     callback_data=f"dose_taken:{dose_id}",
                 ),
                 InlineKeyboardButton(
+                    text="❌ Не сегодня",
+                    callback_data=f"dose_skip:{dose_id}",
+                ),
+                InlineKeyboardButton(
                     text="⏰ Отложить",
                     callback_data=f"dose_snooze:{dose_id}",
                 ),

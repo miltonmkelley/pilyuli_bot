@@ -42,6 +42,7 @@ CREATE TABLE IF NOT EXISTS doses (
     reminder_sent INTEGER DEFAULT 0,
     reminder_count INTEGER DEFAULT 0,
     next_reminder_at TEXT,
+    message_id INTEGER,
     FOREIGN KEY (medicine_id) REFERENCES medicines(id),
     FOREIGN KEY (schedule_id) REFERENCES schedules(id)
 );
@@ -64,6 +65,13 @@ async def init_db(db_path: str = DB_PATH) -> None:
         # Миграция: добавляем last_message_id, если его нет
         try:
             await db.execute("ALTER TABLE users ADD COLUMN last_message_id INTEGER")
+        except aiosqlite.OperationalError:
+            # Колонка уже существует
+            pass
+            
+        # Миграция: добавляем message_id в doses, если его нет
+        try:
+            await db.execute("ALTER TABLE doses ADD COLUMN message_id INTEGER")
         except aiosqlite.OperationalError:
             # Колонка уже существует
             pass

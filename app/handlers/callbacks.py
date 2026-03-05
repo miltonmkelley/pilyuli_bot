@@ -281,3 +281,22 @@ async def on_dose_snooze(callback: CallbackQuery) -> None:
         )
     else:
         await callback.answer("⚠️ Этот приём уже обработан.", show_alert=True)
+
+
+@router.callback_query(F.data.startswith("dose_skip:"))
+async def on_dose_skip(callback: CallbackQuery) -> None:
+    """Handle the 'Skip / Not today' button press."""
+    if not callback.data:
+        return
+
+    from app.services.dose_service import mark_skipped
+    dose_id = int(callback.data.split(":")[1])
+    
+    success = await mark_skipped(dose_id)
+
+    if success:
+        await callback.message.edit_text(  # type: ignore[union-attr]
+            "❌ Отмечено как пропущенное."
+        )
+    else:
+        await callback.answer("⚠️ Этот приём уже обработан.", show_alert=True)
