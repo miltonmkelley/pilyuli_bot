@@ -55,7 +55,6 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
             text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}{count_label}"
 
             try:
-            try:
                 if dose.get("message_id"):
                     # Delete the old reminder message to prevent clutter
                     try:
