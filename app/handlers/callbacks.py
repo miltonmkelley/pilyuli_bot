@@ -7,6 +7,7 @@ from datetime import datetime
 import pytz
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from app.config import settings
@@ -15,6 +16,32 @@ from app.services.dose_service import mark_taken, snooze
 from app.services.message_service import send_single_message
 
 router = Router()
+
+
+class SnoozeInput(StatesGroup):
+    """FSM state for waiting snooze time input."""
+
+    waiting = State()
+
+
+def _parse_snooze_time(text: str) -> int | None:
+    """Parse snooze time input. Returns total minutes or None if invalid.
+
+    Accepts:
+        "30"   → 30 minutes
+        "1:30" → 1 hour 30 minutes = 90 minutes
+    """
+    text = text.strip()
+    if text.isdigit():
+        minutes = int(text)
+        return minutes if 1 <= minutes <= 1440 else None
+    if ":" in text:
+        parts = text.split(":", 1)
+        if parts[0].isdigit() and parts[1].isdigit():
+            hours, mins = int(parts[0]), int(parts[1])
+            if 0 <= hours <= 23 and 0 <= mins <= 59 and (hours > 0 or mins > 0):
+                return hours * 60 + mins
+    return None
 
 
 # ── Reply keyboard text button handlers ────────────────────────────
@@ -64,7 +91,7 @@ async def on_reply_today(message: Message) -> None:
 @router.message(F.text == "⚙️ Настройки")
 async def on_reply_settings(message: Message, state: FSMContext) -> None:
     """Handle reply keyboard '⚙️ Настройки' button."""
-    from app.handlers.settings import EditSettings
+    from app.handlers.settings import EditSettings, _settings_text
     from app.services.settings_service import get_settings_by_telegram_id
 
     if not message.from_user:
@@ -81,16 +108,10 @@ async def on_reply_settings(message: Message, state: FSMContext) -> None:
         await send_single_message(
             bot=message.bot,
             chat_id=message.chat.id,
-            text=(
-                f"⚙️ Текущие настройки уведомлений:\n\n"
-                f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
-                f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
-                f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-                f"Для отмены отправьте /cancel или вернитесь в главное меню."
-            ),
+            text=_settings_text(current["reminder_interval_minutes"]),
             reply_markup=back_to_main_kb()
         )
-    await state.set_state(EditSettings.max_reminders)
+    await state.set_state(EditSettings.interval)
 
 
 # ── Schedule sub-menu callbacks ───────────────────────────────────
@@ -253,7 +274,7 @@ async def on_menu_main(callback: CallbackQuery, state: FSMContext) -> None:
 @router.callback_query(F.data == "menu:settings")
 async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
     """Handle inline '⚙️ Настройки' button."""
-    from app.handlers.settings import EditSettings
+    from app.handlers.settings import EditSettings, _settings_text
     from app.services.settings_service import get_settings_by_telegram_id
 
     if not callback.from_user:
@@ -266,16 +287,10 @@ async def on_menu_settings(callback: CallbackQuery, state: FSMContext) -> None:
         await send_single_message(
             bot=callback.message.bot,
             chat_id=callback.message.chat.id,
-            text=(
-                f"⚙️ Текущие настройки уведомлений:\n\n"
-                f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
-                f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
-                f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-                f"Для отмены отправьте /cancel или вернитесь в главное меню."
-            ),
+            text=_settings_text(current["reminder_interval_minutes"]),
             reply_markup=back_to_main_kb()
         )
-    await state.set_state(EditSettings.max_reminders)
+    await state.set_state(EditSettings.interval)
 
 
 # ── Dose action callbacks ──────────────────────────────────────────
@@ -302,25 +317,73 @@ async def on_dose_taken(callback: CallbackQuery) -> None:
 
 
 @router.callback_query(F.data.startswith("dose_snooze:"))
-async def on_dose_snooze(callback: CallbackQuery) -> None:
-    """Handle the 'Snooze' button press."""
+async def on_dose_snooze(callback: CallbackQuery, state: FSMContext) -> None:
+    """Handle the 'Snooze' button — ask user for delay duration."""
     if not callback.data or not callback.from_user:
         return
 
-    from app.services.settings_service import get_settings_by_telegram_id
-
     dose_id = int(callback.data.split(":")[1])
-    user_settings = await get_settings_by_telegram_id(callback.from_user.id)
-    interval = user_settings["reminder_interval_minutes"]
+    await state.update_data(snooze_dose_id=dose_id)
+    await state.set_state(SnoozeInput.waiting)
 
-    success, used_interval = await snooze(dose_id, interval)
+    await callback.answer()
+    await callback.message.edit_text(  # type: ignore[union-attr]
+        "⏰ На сколько отложить уведомление?\n\n"
+        "Введите время:\n"
+        "• <b>30</b> — 30 минут\n"
+        "• <b>1:30</b> — 1 час 30 минут\n\n"
+        "Для отмены: /cancel"
+    )
 
-    if success:
-        await callback.message.edit_text(  # type: ignore[union-attr]
-            f"⏰ Напоминание отложено на {used_interval} мин."
-        )
-    else:
-        await callback.answer("⚠️ Этот приём уже обработан.", show_alert=True)
+
+@router.message(SnoozeInput.waiting)
+async def process_snooze_input(message: Message, state: FSMContext) -> None:
+    """Receive snooze duration and apply it."""
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    text = (message.text or "").strip()
+    minutes = _parse_snooze_time(text)
+
+    if minutes is None:
+        if message.bot:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text=(
+                    "⚠️ Неверный формат. Примеры:\n"
+                    "• <b>30</b> — 30 минут\n"
+                    "• <b>1:30</b> — 1 час 30 минут"
+                )
+            )
+        return
+
+    data = await state.get_data()
+    dose_id = data["snooze_dose_id"]
+    await state.clear()
+
+    tz = pytz.timezone(settings.timezone)
+    now_str = datetime.now(tz).strftime("%Y-%m-%d %H:%M")
+
+    success, used_interval = await snooze(dose_id, minutes, now_str)
+
+    if message.bot:
+        if success:
+            hours, mins = divmod(used_interval, 60)
+            time_label = f"{hours} ч {mins} мин" if hours else f"{mins} мин"
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text=f"⏰ Напоминание отложено на {time_label}."
+            )
+        else:
+            await send_single_message(
+                bot=message.bot,
+                chat_id=message.chat.id,
+                text="⚠️ Этот приём уже обработан."
+            )
 
 
 @router.callback_query(F.data.startswith("dose_skip:"))

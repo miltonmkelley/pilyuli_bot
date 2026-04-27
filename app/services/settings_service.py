@@ -63,13 +63,11 @@ async def get_settings_by_telegram_id(telegram_id: int) -> dict:
 
 async def update_settings(
     telegram_id: int,
-    max_reminders: int,
     reminder_interval_minutes: int,
 ) -> None:
     """Update (or create) notification settings for a user."""
     db = await get_db()
     try:
-        # Get internal user_id
         cursor = await db.execute(
             "SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)
         )
@@ -81,12 +79,11 @@ async def update_settings(
         await db.execute(
             """
             INSERT INTO user_settings (user_id, max_reminders, reminder_interval_minutes)
-            VALUES (?, ?, ?)
+            VALUES (?, 999, ?)
             ON CONFLICT(user_id) DO UPDATE SET
-                max_reminders = excluded.max_reminders,
                 reminder_interval_minutes = excluded.reminder_interval_minutes
             """,
-            (user_id, max_reminders, reminder_interval_minutes),
+            (user_id, reminder_interval_minutes),
         )
         await db.commit()
     finally:

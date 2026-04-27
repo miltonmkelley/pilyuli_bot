@@ -49,10 +49,7 @@ async def _process_reminders(bot: Bot, tz_name: str) -> None:
         for dose in due:
             time_part = dose["scheduled_datetime"].split(" ")[1]
             dosage = f" ({dose['dosage']})" if dose["dosage"] else ""
-            count = dose["reminder_count"] + 1
-            max_r = dose["max_reminders"]
-            count_label = f"  (напоминание {count}/{max_r})" if max_r > 1 else ""
-            text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}{count_label}"
+            text = f"💊 Время принять: {dose['medicine_name']}{dosage}\n🕐 {time_part}"
 
             try:
                 if dose.get("message_id"):

@@ -57,8 +57,8 @@ async def generate_daily_doses(date_str: str) -> int:
 async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
     """Find doses that are due for a reminder.
 
+    Sends reminders indefinitely (until end of day) until user reacts.
     Uses next_reminder_at to determine when to send the next reminder.
-    Respects per-user max_reminders setting.
     """
     db = await get_db()
     try:
@@ -67,7 +67,6 @@ async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
             SELECT d.id, d.medicine_id, d.scheduled_datetime,
                    m.name, m.dosage, u.telegram_id,
                    d.reminder_count, d.message_id,
-                   COALESCE(us.max_reminders, 3) as max_reminders,
                    COALESCE(us.reminder_interval_minutes, 5) as interval_min
             FROM doses d
             JOIN medicines m ON d.medicine_id = m.id
@@ -75,9 +74,9 @@ async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
             LEFT JOIN user_settings us ON us.user_id = u.id
             WHERE d.status = 'scheduled'
               AND COALESCE(d.next_reminder_at, d.scheduled_datetime) <= ?
-              AND d.reminder_count < COALESCE(us.max_reminders, 3)
+              AND DATE(d.scheduled_datetime) = DATE(?)
             """,
-            (now_str,),
+            (now_str, now_str),
         )
         rows = await cursor.fetchall()
         return [
@@ -90,8 +89,7 @@ async def get_due_reminders(now_str: str) -> list[dict[str, Any]]:
                 "telegram_id": r[5],
                 "reminder_count": r[6],
                 "message_id": r[7],
-                "max_reminders": r[8],
-                "interval_minutes": r[9],
+                "interval_minutes": r[8],
             }
             for r in rows
         ]
@@ -163,30 +161,33 @@ async def mark_taken(dose_id: int, taken_at: str) -> bool:
         await db.close()
 
 
-async def snooze(dose_id: int, interval_minutes: int = 10) -> tuple[bool, int]:
-    """Snooze a dose. Returns (success, interval_used)."""
+async def snooze(dose_id: int, interval_minutes: int, now_str: str) -> tuple[bool, int]:
+    """Snooze a dose by scheduling next reminder at now + interval_minutes.
+
+    Returns (success, interval_used).
+    """
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT status, scheduled_datetime FROM doses WHERE id = ?",
+            "SELECT status FROM doses WHERE id = ?",
             (dose_id,),
         )
         row = await cursor.fetchone()
         if not row or row[0] not in ("scheduled", "missed"):
             return False, 0
 
-        old_dt = datetime.strptime(row[1], "%Y-%m-%d %H:%M")
-        new_dt = old_dt + timedelta(minutes=interval_minutes)
-        new_dt_str = new_dt.strftime("%Y-%m-%d %H:%M")
+        now_dt = datetime.strptime(now_str, "%Y-%m-%d %H:%M")
+        next_dt = now_dt + timedelta(minutes=interval_minutes)
+        next_dt_str = next_dt.strftime("%Y-%m-%d %H:%M")
 
         await db.execute(
             """
             UPDATE doses
-            SET scheduled_datetime = ?, reminder_sent = 0,
-                reminder_count = 0, next_reminder_at = ?
+            SET status = 'scheduled', reminder_sent = 0,
+                next_reminder_at = ?
             WHERE id = ?
             """,
-            (new_dt_str, new_dt_str, dose_id),
+            (next_dt_str, dose_id),
         )
         await db.commit()
         return True, interval_minutes
@@ -216,13 +217,11 @@ async def mark_skipped(dose_id: int) -> bool:
 
 
 async def process_missed_doses(now_str: str) -> int:
-    """Mark doses as missed if 2 hours have passed since scheduled time.
+    """Mark doses as missed if they are from a previous day.
 
+    Today's doses are reminded until end of day; only past-day doses are marked missed.
     Returns the number of doses marked as missed.
     """
-    now = datetime.strptime(now_str, "%Y-%m-%d %H:%M")
-    cutoff = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M")
-
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -230,9 +229,9 @@ async def process_missed_doses(now_str: str) -> int:
             UPDATE doses
             SET status = 'missed'
             WHERE status = 'scheduled'
-              AND scheduled_datetime <= ?
+              AND DATE(scheduled_datetime) < DATE(?)
             """,
-            (cutoff,),
+            (now_str,),
         )
         await db.commit()
         return cursor.rowcount

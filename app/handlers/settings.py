@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -20,8 +18,16 @@ router = Router()
 class EditSettings(StatesGroup):
     """FSM states for editing notification settings."""
 
-    max_reminders = State()
     interval = State()
+
+
+def _settings_text(interval: int) -> str:
+    return (
+        f"⚙️ Настройки уведомлений:\n\n"
+        f"⏱ Интервал повторных уведомлений: {interval} мин.\n\n"
+        f"Введите новый интервал в минутах (1–120):\n"
+        f"Для отмены отправьте /cancel"
+    )
 
 
 @router.message(Command("settings"))
@@ -40,15 +46,9 @@ async def cmd_settings(message: Message, state: FSMContext) -> None:
         await send_single_message(
             bot=message.bot,
             chat_id=message.chat.id,
-            text=(
-                f"⚙️ Текущие настройки уведомлений:\n\n"
-                f"🔔 Макс. напоминаний: {current['max_reminders']}\n"
-                f"⏱ Интервал: {current['reminder_interval_minutes']} мин.\n\n"
-                f"Хотите изменить? Введите максимальное кол-во напоминаний (1–10).\n"
-                f"Для отмены отправьте /cancel"
-            )
+            text=_settings_text(current["reminder_interval_minutes"]),
         )
-    await state.set_state(EditSettings.max_reminders)
+    await state.set_state(EditSettings.interval)
 
 
 @router.message(Command("cancel"))
@@ -66,7 +66,7 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
             await send_single_message(
                 bot=message.bot,
                 chat_id=message.chat.id,
-                text="❌ Настройка отменена.", 
+                text="❌ Отменено.",
                 reply_markup=main_menu_kb()
             )
     else:
@@ -76,35 +76,6 @@ async def cmd_cancel(message: Message, state: FSMContext) -> None:
                 chat_id=message.chat.id,
                 text="Нечего отменять."
             )
-
-
-@router.message(EditSettings.max_reminders)
-async def process_max_reminders(message: Message, state: FSMContext) -> None:
-    """Receive max reminders count."""
-    try:
-        await message.delete()
-    except Exception:
-        pass
-
-    text = (message.text or "").strip()
-
-    if not text.isdigit() or not (1 <= int(text) <= 10):
-        if message.bot:
-            await send_single_message(
-                bot=message.bot,
-                chat_id=message.chat.id,
-                text="Введите число от 1 до 10:"
-            )
-        return
-
-    await state.update_data(max_reminders=int(text))
-    await state.set_state(EditSettings.interval)
-    if message.bot:
-        await send_single_message(
-            bot=message.bot,
-            chat_id=message.chat.id,
-            text="⏱ Введите интервал между напоминаниями в минутах (1–60):"
-        )
 
 
 @router.message(EditSettings.interval)
@@ -117,23 +88,20 @@ async def process_interval(message: Message, state: FSMContext) -> None:
 
     text = (message.text or "").strip()
 
-    if not text.isdigit() or not (1 <= int(text) <= 60):
+    if not text.isdigit() or not (1 <= int(text) <= 120):
         if message.bot:
             await send_single_message(
                 bot=message.bot,
                 chat_id=message.chat.id,
-                text="Введите число от 1 до 60:"
+                text="Введите число от 1 до 120:"
             )
         return
 
     if not message.from_user:
         return
 
-    data = await state.get_data()
-    max_r = data["max_reminders"]
     interval = int(text)
-
-    await update_settings(message.from_user.id, max_r, interval)
+    await update_settings(message.from_user.id, interval)
     await state.clear()
     if message.bot:
         await send_single_message(
@@ -141,8 +109,7 @@ async def process_interval(message: Message, state: FSMContext) -> None:
             chat_id=message.chat.id,
             text=(
                 f"✅ Настройки сохранены!\n\n"
-                f"🔔 Макс. напоминаний: {max_r}\n"
-                f"⏱ Интервал: {interval} мин."
+                f"⏱ Интервал повторных уведомлений: {interval} мин."
             ),
             reply_markup=main_menu_kb(),
         )
